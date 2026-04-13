@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wi-Fi Sentinel</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- SIDEBAR                                                              -->
+  <!-- ------------------------------------------------------------------ -->
+  <aside id="sidebar">
+
+    <div class="app-title">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M1.5 8.5a13 13 0 0 1 21 0M5 12a10 10 0 0 1 14 0M8.5 15.5a6 6 0 0 1 7 0M12 19h.01" />
+      </svg>
+      <span>Wi-Fi Sentinel</span>
+    </div>
+
+    <label for="interface-select">Interface</label>
+    <select id="interface-select">
+      <option value="">Select interface...</option>
+    </select>
+
+    <button id="btn-start">Start Scan</button>
+    <button id="btn-stop" disabled>Stop</button>
+
+    <div class="status-row">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">Idle</span>
+    </div>
+
+    <div class="metrics">
+      <div class="metric-card">
+        <span class="metric-value" id="count-networks">0</span>
+        <span class="metric-label">Networks</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-value" id="count-flagged">0</span>
+        <span class="metric-label">Flagged</span>
+      </div>
+      <div class="metric-card">
+        <span class="metric-value" id="count-threats">0</span>
+        <span class="metric-label">Threats</span>
+      </div>
+    </div>
+
+    <p class="section-label">Active Plugins</p>
+    <ul id="plugins-list">
+      <li class="muted">None loaded</li>
+    </ul>
+
+  </aside>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- MAIN                                                                 -->
+  <!-- ------------------------------------------------------------------ -->
+  <main id="main">
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="networks">Networks</button>
+      <button class="tab-btn" data-tab="threats">Threats</button>
+    </div>
+
+    <!-- Networks panel -->
+    <div id="panel-networks" class="tab-panel">
+      <div id="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>SSID</th>
+              <th>BSSID</th>
+              <th>Standard</th>
+              <th>Security</th>
+              <th>Ch</th>
+              <th>Signal</th>
+              <th>Vendor <!-- PLUGIN FIELD: vendor --></th>
+            </tr>
+          </thead>
+          <tbody id="networks-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Threats panel -->
+    <div id="panel-threats" class="tab-panel" hidden>
+      <div id="threats-feed"></div>
+    </div>
+
+  </main>
+
+  <!-- ------------------------------------------------------------------ -->
+  <!-- DETAIL DRAWER                                                        -->
+  <!-- ------------------------------------------------------------------ -->
+  <aside id="detail-drawer">
+    <button id="drawer-close">×</button>
+    <h3 id="drawer-ssid"></h3>
+    <div id="drawer-content"></div>
+  </aside>
+
+  <script src="app.js"></script>
+</body>
+</html>
