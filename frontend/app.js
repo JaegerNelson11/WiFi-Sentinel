@@ -103,6 +103,7 @@ function wireButtons() {
   document.getElementById('btn-start').addEventListener('click', startScan);
   document.getElementById('btn-stop').addEventListener('click', stopScan);
   document.getElementById('drawer-close').addEventListener('click', closeDrawer);
+  document.getElementById('btn-export').addEventListener('click', exportCSV);
 
   for (const btn of document.querySelectorAll('.tab-btn')) {
     btn.addEventListener('click', () => {
@@ -154,6 +155,53 @@ function wireButtons() {
       sortAndRenderTable();
     });
   });
+
+// ---------------------------------------------------------------------------
+// exportCSV
+// ---------------------------------------------------------------------------
+function exportCSV() {
+  const netArray = Object.values(networks);
+  
+  if (netArray.length === 0) {
+    alert('No network data to export.');
+    return;
+  }
+
+  // 1. Define the CSV Headers
+  const headers = ['Status', 'SSID', 'BSSID', 'Standard', 'Security', 'Channel', 'Signal (dBm)', 'Vendor'];
+
+  // 2. Map the network objects to CSV rows
+  const rows = netArray.map(net => {
+    const status = net.flagged ? 'FLAGGED' : 'OK';
+    const ssid = (net.SSID || '').replace(/"/g, '""'); // Escape internal quotes
+    const bssid = net.BSSID || '';
+    const standard = net.Standard || '';
+    const security = net.Security || '';
+    const channel = net.Channel || '';
+    const signal = net.Signal || '';
+    const vendor = (net.Vendor || '').replace(/"/g, '""');
+
+    // Wrap values in quotes to prevent internal commas from breaking columns
+    return `"${status}","${ssid}","${bssid}","${standard}","${security}","${channel}","${signal}","${vendor}"`;
+  });
+
+  // 3. Combine it all together
+  const csvContent = [headers.join(','), ...rows].join('\n');
+
+  // 4. Create a temporary Blob and trigger the download
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  // Give it a nice timestamped filename
+  link.setAttribute('download', `wifi_sentinel_report_${new Date().getTime()}.csv`);
+  link.style.visibility = 'hidden';
+  
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
 
 // ---------------------------------------------------------------------------
 // startScan
