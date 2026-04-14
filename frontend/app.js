@@ -6,6 +6,8 @@ const API = '';
 let networks = {};
 let scanning = false;
 let sse = null;
+let currentSort = null; 
+let sortAsc = true;
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -114,6 +116,44 @@ function wireButtons() {
     });
   }
 }
+  // Map table headers to our sorting keys
+  const headerMap = {
+    'Status': 'Status',
+    'SSID': 'SSID',
+    'BSSID': 'BSSID',
+    'Standard': 'Standard',
+    'Security': 'Security',
+    'Ch': 'Channel',
+    'Signal': 'Signal',
+    'Vendor': 'Vendor'
+  };
+
+  const headers = document.querySelectorAll('th');
+  headers.forEach(th => {
+    th.style.cursor = 'pointer';
+    th.addEventListener('click', () => {
+      // Clean the text to map it to our object keys
+      const baseText = th.textContent.replace(' ▲', '').replace(' ▼', '').trim();
+      const key = headerMap[baseText];
+      
+      if (!key) return;
+
+      if (currentSort === key) {
+        sortAsc = !sortAsc; // Toggle direction
+      } else {
+        currentSort = key;
+        sortAsc = true; // Default to ascending on new column
+      }
+
+      // Clear arrows from all headers, then add to the active one
+      headers.forEach(h => {
+        h.textContent = h.textContent.replace(' ▲', '').replace(' ▼', '');
+      });
+      th.textContent += sortAsc ? ' ▲' : ' ▼';
+
+      sortAndRenderTable();
+    });
+  });
 
 // ---------------------------------------------------------------------------
 // startScan
@@ -228,20 +268,63 @@ function connectSSE() {
 }
 
 // ---------------------------------------------------------------------------
+// sortAndRenderTable
+// ---------------------------------------------------------------------------
+function sortAndRenderTable() {
+  if (!currentSort) return;
+
+  const tbody = document.getElementById('networks-body');
+  const netArray = Object.values(networks);
+
+  netArray.sort((a, b) => {
+    let valA = a[currentSort];
+    let valB = b[currentSort];
+
+    // Handle special cases: Status (Flagged), Numbers, and Strings
+    if (currentSort === 'Status') {
+      valA = a.flagged ? 0 : 1;
+      valB = b.flagged ? 0 : 1;
+    } else if (currentSort === 'Signal' || currentSort === 'Channel') {
+      valA = valA != null ? Number(valA) : -999;
+      valB = valB != null ? Number(valB) : -999;
+    } else {
+      valA = String(valA || '').toLowerCase();
+      valB = String(valB || '').toLowerCase();
+    }
+
+    if (valA < valB) return sortAsc ? -1 : 1;
+    if (valA > valB) return sortAsc ? 1 : -1;
+    return 0;
+  });
+
+  // Clear table and re-render in sorted order
+  tbody.innerHTML = '';
+  netArray.forEach(net => {
+    tbody.appendChild(renderNetworkRow(net));
+  });
+}
+
+// ---------------------------------------------------------------------------
 // handleNetworkEvent
 // ---------------------------------------------------------------------------
 function handleNetworkEvent(network) {
   network.flagged = network.Security.includes('WEP') || network.Security === 'Open';
 
   if (network.BSSID in networks) {
-    // Update signal cell only
-    const row = document.querySelector(`tr[data-bssid="${CSS.escape(network.BSSID)}"]`);
-    if (row) {
-      const signalTd = row.cells[6];
-      const newTd = signalCell(network.Signal);
-      signalTd.replaceWith(newTd);
-    }
     networks[network.BSSID] = network;
+    
+    // If we are actively sorting by Signal, re-sort the whole table when it fluctuates
+    if (currentSort === 'Signal') {
+      sortAndRenderTable();
+    } else {
+      // Otherwise just update the specific signal cell quietly
+      const row = document.querySelector(`tr[data-bssid="${CSS.escape(network.BSSID)}"]`);
+      if (row) {
+        const signalTd = row.cells[6];
+        const newTd = signalCell(network.Signal);
+        signalTd.replaceWith(newTd);
+      }
+    }
     return;
   }
 
@@ -255,12 +338,17 @@ function handleNetworkEvent(network) {
     flaggedEl.textContent = parseInt(flaggedEl.textContent, 10) + 1;
   }
 
-  const tr = renderNetworkRow(network);
-  const tbody = document.getElementById('networks-body');
-  tbody.prepend(tr);
+  // Respect sort order if active, otherwise prepend like normal
+  if (currentSort) {
+    sortAndRenderTable();
+  } else {
+    const tr = renderNetworkRow(network);
+    const tbody = document.getElementById('networks-body');
+    tbody.prepend(tr);
 
-  tr.classList.add('row-enter');
-  setTimeout(() => tr.classList.remove('row-enter'), 300);
+    tr.classList.add('row-enter');
+    setTimeout(() => tr.classList.remove('row-enter'), 300);
+  }
 }
 
 // ---------------------------------------------------------------------------
