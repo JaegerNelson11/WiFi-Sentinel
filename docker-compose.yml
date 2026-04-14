@@ -27,3 +27,17 @@ services:
       - PYTHONUNBUFFERED=1
     profiles:
       - mac
+
+  wifi-sentinel-demo:
+    build: .
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./frontend:/app/frontend
+      - ./backend/plugins:/app/backend/plugins
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DEMO=1
+    profiles:
+      - demo

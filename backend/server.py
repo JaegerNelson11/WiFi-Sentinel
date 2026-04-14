@@ -15,6 +15,7 @@ from plugins import PluginManager
 # App setup
 # ---------------------------------------------------------------------------
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
+DEMO_MODE = os.environ.get("DEMO", "").lower() in ("1", "true", "yes")
 
 app = Flask(__name__, static_folder=None)
 CORS(app, origins="*")
@@ -34,6 +35,8 @@ def event_callback(event: dict):
 # ---------------------------------------------------------------------------
 @app.get("/api/interfaces")
 def get_interfaces():
+    if DEMO_MODE:
+        return jsonify(["demo"])
     return jsonify(sentinel.get_interfaces())
 
 
@@ -45,7 +48,10 @@ def scan_start():
     body = request.get_json(silent=True) or {}
     interface = body.get("interface", "")
     sentinel.reset()
-    sentinel.start_scan(interface, callback=event_callback)
+    if DEMO_MODE or interface == "demo":
+        sentinel.start_demo(callback=event_callback)
+    else:
+        sentinel.start_scan(interface, callback=event_callback)
     plugin_manager.call_on_start()
     return jsonify({"status": "started", "interface": interface})
 
