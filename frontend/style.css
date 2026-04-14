@@ -16,6 +16,38 @@
   --blue: #58a6ff;
 }
 
+body.light {
+  --bg: #f6f8fa;
+  --surface: #ffffff;
+  --card: #f0f2f5;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text-muted: #656d76;
+  --green: #1a7f37;
+  --red: #cf222e;
+  --amber: #9a6700;
+  --blue: #0969da;
+}
+
+#btn-theme {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+#btn-theme:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
+
 /* -------------------------------------------------------------------------
    Reset
 ------------------------------------------------------------------------- */

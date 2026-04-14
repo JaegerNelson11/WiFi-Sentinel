@@ -110,6 +110,10 @@ function wireButtons() {
   document.getElementById('btn-stop').addEventListener('click', stopScan);
   document.getElementById('drawer-close').addEventListener('click', closeDrawer);
   document.getElementById('btn-export').addEventListener('click', exportCSV);
+  document.getElementById('btn-theme').addEventListener('click', () => {
+    const isLight = document.body.classList.toggle('light');
+    document.getElementById('btn-theme').textContent = isLight ? '☾' : '☀';
+  });
 
   document.getElementById('filter-input').addEventListener('input', (e) => {
     filterText = e.target.value.toLowerCase();
