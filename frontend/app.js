@@ -29,11 +29,19 @@ async function initInterfaces() {
     // Remove all options except the placeholder
     while (select.options.length > 1) select.remove(1);
 
+    // INJECT DEMO MODE
+    const demoOpt = document.createElement('option');
+    demoOpt.value = 'demo';
+    demoOpt.textContent = 'Demo Simulation (Local)';
+    select.appendChild(demoOpt);
+
     if (ifaces.length === 0) {
-      select.options[0].textContent = 'No monitor-mode interfaces found';
+      select.options[0].textContent = 'No physical interfaces found';
       return;
     }
 
+    // Populate actual physical interfaces if they exist
+    select.options[0].textContent = 'Select interface...';
     for (const iface of ifaces) {
       const opt = document.createElement('option');
       opt.value = iface;
@@ -41,7 +49,13 @@ async function initInterfaces() {
       select.appendChild(opt);
     }
   } catch (err) {
-    select.options[0].textContent = 'Failed to load interfaces';
+    select.options[0].textContent = 'Backend offline - Local only';
+    
+    // Still add demo fallback just in case the backend is entirely down
+    const demoOpt = document.createElement('option');
+    demoOpt.value = 'demo';
+    demoOpt.textContent = 'Demo Simulation (Local)';
+    select.appendChild(demoOpt);
   }
 }
 
@@ -107,8 +121,15 @@ function wireButtons() {
 async function startScan() {
   const select = document.getElementById('interface-select');
   const iface = select.value;
+  
   if (!iface) {
     alert('Please select an interface first.');
+    return;
+  }
+
+  // INTERCEPT DEMO MODE
+  if (iface === 'demo') {
+    startDemo(); // Trigger the demo loop instead of the backend API
     return;
   }
 
@@ -142,6 +163,13 @@ async function startScan() {
 // stopScan
 // ---------------------------------------------------------------------------
 async function stopScan() {
+  // 1. Kill the demo intervals if they are running
+  if (typeof demoIntervals !== 'undefined') {
+    demoIntervals.forEach(clearInterval);
+    demoIntervals = [];
+  }
+
+  // 2. Stop the real backend scan (if it was running)
   try {
     await fetch(`${API}/api/scan/stop`, { method: 'POST' });
   } catch (_) {
@@ -438,4 +466,76 @@ function timestamp() {
   const now = new Date();
   const pad = (n) => String(n).padStart(2, '0');
   return `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+
+
+// ---------------------------------------------------------------------------
+// Demo Simulator Logic
+// ---------------------------------------------------------------------------
+let demoIntervals = [];
+
+function startDemo() {
+  // 1. Reset the UI just like a real scan
+  networks = {};
+  scanning = true;
+  document.getElementById('networks-body').innerHTML = '';
+  document.getElementById('threats-feed').innerHTML = '';
+  document.getElementById('count-networks').textContent = '0';
+  document.getElementById('count-flagged').textContent = '0';
+  document.getElementById('count-threats').textContent = '0';
+  
+  setStatus('active', 'Running Local Simulation...');
+  document.getElementById('btn-start').disabled = true;
+  document.getElementById('btn-stop').disabled = false;
+
+  // Clear any existing demo intervals
+  demoIntervals.forEach(clearInterval);
+  demoIntervals = [];
+
+  // 2. 12+ Diverse Fake Networks for a robust demo
+  const fakeNetworks = [
+    { BSSID: "00:14:22:01:23:45", SSID: "WSU_Guest", Security: "Open", Standard: "802.11n", Channel: 6, Signal: -60, Vendor: "Cisco Systems" },
+    { BSSID: "A0:B1:C2:D3:E4:F5", SSID: "Apartment_WiFi", Security: "WPA3", Standard: "802.11ax", Channel: 11, Signal: -45, Vendor: "Netgear" },
+    { BSSID: "00:11:22:33:44:55", SSID: "<Hidden SSID>", Security: "WEP (Insecure)", Standard: "802.11g", Channel: 1, Signal: -80, Vendor: "Linksys" },
+    { BSSID: "AA:BB:CC:DD:EE:FF", SSID: "CoffeeShop_Free", Security: "Open", Standard: "802.11ac", Channel: 36, Signal: -55, Vendor: "Ubiquiti" },
+    { BSSID: "11:22:33:44:55:66", SSID: "IoT_SmartHome", Security: "WPA2", Standard: "802.11n", Channel: 6, Signal: -70, Vendor: "Espressif" },
+    { BSSID: "44:55:66:77:88:99", SSID: "NETGEAR-5G", Security: "WPA2", Standard: "802.11ac", Channel: 149, Signal: -52, Vendor: "Netgear" },
+    { BSSID: "CC:DD:EE:FF:00:11", SSID: "Cougar_Secure", Security: "WPA2", Standard: "802.11ax", Channel: 44, Signal: -40, Vendor: "Aruba" },
+    { BSSID: "22:33:44:55:66:77", SSID: "HP-Print-22-LaserJet", Security: "Open", Standard: "802.11g", Channel: 11, Signal: -85, Vendor: "Hewlett Packard" },
+    { BSSID: "99:88:77:66:55:44", SSID: "My_iPhone_17", Security: "WPA3", Standard: "802.11ax", Channel: 1, Signal: -35, Vendor: "Apple, Inc." },
+    { BSSID: "55:44:33:22:11:00", SSID: "Starbucks WiFi", Security: "Open", Standard: "802.11ac", Channel: 6, Signal: -68, Vendor: "Cisco Systems" },
+    { BSSID: "FE:DC:BA:98:76:54", SSID: "<Hidden SSID>", Security: "WPA2", Standard: "802.11n", Channel: 11, Signal: -77, Vendor: "TP-Link" },
+    { BSSID: "01:23:45:67:89:AB", SSID: "PhiKap_Main", Security: "WPA2", Standard: "802.11ax", Channel: 157, Signal: -48, Vendor: "Ubiquiti" }
+  ];
+
+  // 3. Stagger the network discovery (adds realism)
+  fakeNetworks.forEach((net, index) => {
+    setTimeout(() => {
+      handleNetworkEvent({ ...net }); // Send copy to UI
+    }, index * 600); // New network pops up every 600ms
+  });
+
+  // 4. Simulate Signal Fluctuation (Live UI updates)
+  const signalJitter = setInterval(() => {
+    fakeNetworks.forEach(net => {
+      // Randomly shift signal by -3 to +3 dBm
+      const jitter = Math.floor(Math.random() * 7) - 3; 
+      net.Signal = Math.min(-30, Math.max(-90, net.Signal + jitter));
+      handleNetworkEvent({ ...net }); // Triggers the signal UI update in app.js
+    });
+  }, 2000); // Update every 2 seconds
+  demoIntervals.push(signalJitter);
+
+  // 5. Simulate timed Cyber Attacks
+  setTimeout(() => {
+    handleThreatEvent({ source: "DE:AD:BE:EF:00:00", target: "00:14:22:01:23:45", reason: 7 });
+  }, 4500);
+
+  setTimeout(() => {
+    handleFloodEvent({ source: "DE:AD:BE:EF:00:00", count: 42 });
+  }, 8000);
+  
+  setTimeout(() => {
+    handleThreatEvent({ source: "1A:2B:3C:4D:5E:6F", target: "FF:FF:FF:FF:FF:FF", reason: 1 });
+  }, 12000);
 }
