@@ -6,9 +6,13 @@ const API = '';
 let networks = {};
 let scanning = false;
 let sse = null;
-let currentSort = null; 
+let currentSort = null;
 let sortAsc = true;
 let activeDrawerBSSID = null;
+let filterText = '';
+let flaggedOnly = false;
+let channelCounts = {};
+let channelChart = null;
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -18,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initInterfaces();
   fetchInitialState();
   wireButtons();
+  initChannelChart();
 });
 
 // ---------------------------------------------------------------------------
@@ -105,6 +110,21 @@ function wireButtons() {
   document.getElementById('btn-stop').addEventListener('click', stopScan);
   document.getElementById('drawer-close').addEventListener('click', closeDrawer);
   document.getElementById('btn-export').addEventListener('click', exportCSV);
+  document.getElementById('btn-theme').addEventListener('click', () => {
+    const isLight = document.body.classList.toggle('light');
+    document.getElementById('btn-theme').textContent = isLight ? '☾' : '☀';
+  });
+
+  document.getElementById('filter-input').addEventListener('input', (e) => {
+    filterText = e.target.value.toLowerCase();
+    applyFilters();
+  });
+
+  document.getElementById('btn-flagged-only').addEventListener('click', () => {
+    flaggedOnly = !flaggedOnly;
+    document.getElementById('btn-flagged-only').classList.toggle('active', flaggedOnly);
+    applyFilters();
+  });
 
   for (const btn of document.querySelectorAll('.tab-btn')) {
     btn.addEventListener('click', () => {
@@ -232,11 +252,17 @@ async function startScan() {
 
     scanning = true;
     networks = {};
+    filterText = '';
+    flaggedOnly = false;
+    channelCounts = {};
+    document.getElementById('filter-input').value = '';
+    document.getElementById('btn-flagged-only').classList.remove('active');
     document.getElementById('networks-body').innerHTML = '';
     document.getElementById('threats-feed').innerHTML = '';
     document.getElementById('count-networks').textContent = '0';
     document.getElementById('count-flagged').textContent = '0';
     document.getElementById('count-threats').textContent = '0';
+    if (channelChart) { channelChart.data.labels = []; channelChart.data.datasets[0].data = []; channelChart.update(); }
 
     setStatus('active', `Scanning on ${iface}`);
     document.getElementById('btn-start').disabled = true;
@@ -321,36 +347,7 @@ function connectSSE() {
 // ---------------------------------------------------------------------------
 function sortAndRenderTable() {
   if (!currentSort) return;
-
-  const tbody = document.getElementById('networks-body');
-  const netArray = Object.values(networks);
-
-  netArray.sort((a, b) => {
-    let valA = a[currentSort];
-    let valB = b[currentSort];
-
-    // Handle special cases: Status (Flagged), Numbers, and Strings
-    if (currentSort === 'Status') {
-      valA = a.flagged ? 0 : 1;
-      valB = b.flagged ? 0 : 1;
-    } else if (currentSort === 'Signal' || currentSort === 'Channel') {
-      valA = valA != null ? Number(valA) : -999;
-      valB = valB != null ? Number(valB) : -999;
-    } else {
-      valA = String(valA || '').toLowerCase();
-      valB = String(valB || '').toLowerCase();
-    }
-
-    if (valA < valB) return sortAsc ? -1 : 1;
-    if (valA > valB) return sortAsc ? 1 : -1;
-    return 0;
-  });
-
-  // Clear table and re-render in sorted order
-  tbody.innerHTML = '';
-  netArray.forEach(net => {
-    tbody.appendChild(renderNetworkRow(net));
-  });
+  applyFilters();
 }
 
 // ---------------------------------------------------------------------------
@@ -393,6 +390,7 @@ function handleNetworkEvent(network) {
   // FOR NEW NETWORKS: Initialize the history array
   network.SignalHistory = [network.Signal];
   networks[network.BSSID] = network;
+  updateChannelChart(network.Channel);
 
   const countEl = document.getElementById('count-networks');
   countEl.textContent = parseInt(countEl.textContent, 10) + 1;
@@ -686,6 +684,77 @@ function timestamp() {
 
 
 // ---------------------------------------------------------------------------
+// Channel distribution chart
+// ---------------------------------------------------------------------------
+function initChannelChart() {
+  const ctx = document.getElementById('channel-chart').getContext('2d');
+  channelChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: 'rgba(0,255,136,0.2)', borderColor: 'rgba(0,255,136,0.8)', borderWidth: 1, borderRadius: 3 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 250 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { title: (i) => `Channel ${i[0].label}`, label: (i) => ` ${i.raw} network${i.raw === 1 ? '' : 's'}` } },
+      },
+      scales: {
+        x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(33,38,45,0.8)' } },
+        y: { ticks: { color: '#8b949e', font: { size: 10 }, stepSize: 1, precision: 0 }, grid: { color: 'rgba(33,38,45,0.8)' }, beginAtZero: true },
+      },
+    },
+  });
+}
+
+function updateChannelChart(channel) {
+  if (channel == null || channelChart == null) return;
+  const key = String(channel);
+  channelCounts[key] = (channelCounts[key] || 0) + 1;
+  const sorted = Object.keys(channelCounts).sort((a, b) => Number(a) - Number(b));
+  channelChart.data.labels = sorted;
+  channelChart.data.datasets[0].data = sorted.map(ch => channelCounts[ch]);
+  channelChart.update();
+}
+
+// ---------------------------------------------------------------------------
+// Filter logic
+// ---------------------------------------------------------------------------
+function applyFilters() {
+  const tbody = document.getElementById('networks-body');
+  let netArray = Object.values(networks);
+
+  if (flaggedOnly) {
+    netArray = netArray.filter(n => n.flagged);
+  }
+
+  if (filterText) {
+    netArray = netArray.filter(n =>
+      (n.SSID || '').toLowerCase().includes(filterText) ||
+      (n.Security || '').toLowerCase().includes(filterText) ||
+      (n.Standard || '').toLowerCase().includes(filterText) ||
+      (n.BSSID || '').toLowerCase().includes(filterText)
+    );
+  }
+
+  if (currentSort) {
+    netArray.sort((a, b) => {
+      let valA = a[currentSort];
+      let valB = b[currentSort];
+      if (currentSort === 'Status') { valA = a.flagged ? 0 : 1; valB = b.flagged ? 0 : 1; }
+      else if (currentSort === 'Signal' || currentSort === 'Channel') { valA = valA != null ? Number(valA) : -999; valB = valB != null ? Number(valB) : -999; }
+      else { valA = String(valA || '').toLowerCase(); valB = String(valB || '').toLowerCase(); }
+      if (valA < valB) return sortAsc ? -1 : 1;
+      if (valA > valB) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  tbody.innerHTML = '';
+  netArray.forEach(net => tbody.appendChild(renderNetworkRow(net)));
+}
+
+// ---------------------------------------------------------------------------
 // Demo Simulator Logic
 // ---------------------------------------------------------------------------
 let demoIntervals = [];
@@ -694,11 +763,17 @@ function startDemo() {
   // 1. Reset the UI just like a real scan
   networks = {};
   scanning = true;
+  filterText = '';
+  flaggedOnly = false;
+  channelCounts = {};
+  document.getElementById('filter-input').value = '';
+  document.getElementById('btn-flagged-only').classList.remove('active');
   document.getElementById('networks-body').innerHTML = '';
   document.getElementById('threats-feed').innerHTML = '';
   document.getElementById('count-networks').textContent = '0';
   document.getElementById('count-flagged').textContent = '0';
   document.getElementById('count-threats').textContent = '0';
+  if (channelChart) { channelChart.data.labels = []; channelChart.data.datasets[0].data = []; channelChart.update(); }
   
   setStatus('active', 'Running Local Simulation...');
   document.getElementById('btn-start').disabled = true;

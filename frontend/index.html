@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wi-Fi Sentinel</title>
   <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -18,6 +19,7 @@
         <path d="M1.5 8.5a13 13 0 0 1 21 0M5 12a10 10 0 0 1 14 0M8.5 15.5a6 6 0 0 1 7 0M12 19h.01" />
       </svg>
       <span>Wi-Fi Sentinel</span>
+      <button id="btn-theme" title="Toggle light/dark mode">☀</button>
     </div>
 
     <label for="interface-select">Interface</label>
@@ -69,6 +71,14 @@
 
     <!-- Networks panel -->
     <div id="panel-networks" class="tab-panel">
+      <div id="channel-chart-wrap">
+        <p class="chart-label">Channel Distribution</p>
+        <canvas id="channel-chart"></canvas>
+      </div>
+      <div id="filter-bar">
+        <input id="filter-input" type="text" placeholder="Search SSID, security, standard..." autocomplete="off" />
+        <button id="btn-flagged-only">Flagged Only</button>
+      </div>
       <div id="table-wrap">
         <table>
           <thead>
