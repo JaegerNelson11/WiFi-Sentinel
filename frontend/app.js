@@ -11,6 +11,8 @@ let sortAsc = true;
 let activeDrawerBSSID = null;
 let filterText = '';
 let flaggedOnly = false;
+let channelCounts = {};
+let channelChart = null;
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -20,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initInterfaces();
   fetchInitialState();
   wireButtons();
+  initChannelChart();
 });
 
 // ---------------------------------------------------------------------------
@@ -247,6 +250,7 @@ async function startScan() {
     networks = {};
     filterText = '';
     flaggedOnly = false;
+    channelCounts = {};
     document.getElementById('filter-input').value = '';
     document.getElementById('btn-flagged-only').classList.remove('active');
     document.getElementById('networks-body').innerHTML = '';
@@ -254,6 +258,7 @@ async function startScan() {
     document.getElementById('count-networks').textContent = '0';
     document.getElementById('count-flagged').textContent = '0';
     document.getElementById('count-threats').textContent = '0';
+    if (channelChart) { channelChart.data.labels = []; channelChart.data.datasets[0].data = []; channelChart.update(); }
 
     setStatus('active', `Scanning on ${iface}`);
     document.getElementById('btn-start').disabled = true;
@@ -381,6 +386,7 @@ function handleNetworkEvent(network) {
   // FOR NEW NETWORKS: Initialize the history array
   network.SignalHistory = [network.Signal];
   networks[network.BSSID] = network;
+  updateChannelChart(network.Channel);
 
   const countEl = document.getElementById('count-networks');
   countEl.textContent = parseInt(countEl.textContent, 10) + 1;
@@ -674,6 +680,40 @@ function timestamp() {
 
 
 // ---------------------------------------------------------------------------
+// Channel distribution chart
+// ---------------------------------------------------------------------------
+function initChannelChart() {
+  const ctx = document.getElementById('channel-chart').getContext('2d');
+  channelChart = new Chart(ctx, {
+    type: 'bar',
+    data: { labels: [], datasets: [{ data: [], backgroundColor: 'rgba(0,255,136,0.2)', borderColor: 'rgba(0,255,136,0.8)', borderWidth: 1, borderRadius: 3 }] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 250 },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { title: (i) => `Channel ${i[0].label}`, label: (i) => ` ${i.raw} network${i.raw === 1 ? '' : 's'}` } },
+      },
+      scales: {
+        x: { ticks: { color: '#8b949e', font: { size: 10 } }, grid: { color: 'rgba(33,38,45,0.8)' } },
+        y: { ticks: { color: '#8b949e', font: { size: 10 }, stepSize: 1, precision: 0 }, grid: { color: 'rgba(33,38,45,0.8)' }, beginAtZero: true },
+      },
+    },
+  });
+}
+
+function updateChannelChart(channel) {
+  if (channel == null || channelChart == null) return;
+  const key = String(channel);
+  channelCounts[key] = (channelCounts[key] || 0) + 1;
+  const sorted = Object.keys(channelCounts).sort((a, b) => Number(a) - Number(b));
+  channelChart.data.labels = sorted;
+  channelChart.data.datasets[0].data = sorted.map(ch => channelCounts[ch]);
+  channelChart.update();
+}
+
+// ---------------------------------------------------------------------------
 // Filter logic
 // ---------------------------------------------------------------------------
 function applyFilters() {
@@ -721,6 +761,7 @@ function startDemo() {
   scanning = true;
   filterText = '';
   flaggedOnly = false;
+  channelCounts = {};
   document.getElementById('filter-input').value = '';
   document.getElementById('btn-flagged-only').classList.remove('active');
   document.getElementById('networks-body').innerHTML = '';
@@ -728,6 +769,7 @@ function startDemo() {
   document.getElementById('count-networks').textContent = '0';
   document.getElementById('count-flagged').textContent = '0';
   document.getElementById('count-threats').textContent = '0';
+  if (channelChart) { channelChart.data.labels = []; channelChart.data.datasets[0].data = []; channelChart.update(); }
   
   setStatus('active', 'Running Local Simulation...');
   document.getElementById('btn-start').disabled = true;

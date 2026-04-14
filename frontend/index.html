@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wi-Fi Sentinel</title>
   <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -69,6 +70,10 @@
 
     <!-- Networks panel -->
     <div id="panel-networks" class="tab-panel">
+      <div id="channel-chart-wrap">
+        <p class="chart-label">Channel Distribution</p>
+        <canvas id="channel-chart"></canvas>
+      </div>
       <div id="filter-bar">
         <input id="filter-input" type="text" placeholder="Search SSID, security, standard..." autocomplete="off" />
         <button id="btn-flagged-only">Flagged Only</button>
