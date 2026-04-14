@@ -508,20 +508,26 @@ function startDemo() {
     { BSSID: "01:23:45:67:89:AB", SSID: "PhiKap_Main", Security: "WPA2", Standard: "802.11ax", Channel: 157, Signal: -48, Vendor: "Ubiquiti" }
   ];
 
-  // 3. Stagger the network discovery (adds realism)
-  fakeNetworks.forEach((net, index) => {
-    setTimeout(() => {
-      handleNetworkEvent({ ...net }); // Send copy to UI
-    }, index * 600); // New network pops up every 600ms
-  });
+  // 3. Stagger the network discovery strictly and safely
+  let networkIndex = 0;
+  const staggerInterval = setInterval(() => {
+    if (networkIndex < fakeNetworks.length) {
+      handleNetworkEvent({ ...fakeNetworks[networkIndex] }); 
+      networkIndex++;
+    } else {
+      clearInterval(staggerInterval); 
+    }
+  }, 600); //  600ms between each row
+
+  // "Stop" button can kill it mid-scan
+  demoIntervals.push(staggerInterval);  
 
   // 4. Simulate Signal Fluctuation (Live UI updates)
   const signalJitter = setInterval(() => {
-    fakeNetworks.forEach(net => {
-      // Randomly shift signal by -3 to +3 dBm
+    Object.values(networks).forEach(currentNet => {
       const jitter = Math.floor(Math.random() * 7) - 3; 
-      net.Signal = Math.min(-30, Math.max(-90, net.Signal + jitter));
-      handleNetworkEvent({ ...net }); // Triggers the signal UI update in app.js
+      currentNet.Signal = Math.min(-30, Math.max(-90, currentNet.Signal + jitter));
+      handleNetworkEvent({ ...currentNet }); // Triggers the signal UI update
     });
   }, 2000); // Update every 2 seconds
   demoIntervals.push(signalJitter);
