@@ -8,6 +8,7 @@ let scanning = false;
 let sse = null;
 let currentSort = null; 
 let sortAsc = true;
+let activeDrawerBSSID = null;
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -359,23 +360,38 @@ function handleNetworkEvent(network) {
   network.flagged = network.Security.includes('WEP') || network.Security === 'Open';
 
   if (network.BSSID in networks) {
-    networks[network.BSSID] = network;
+    const existingNet = networks[network.BSSID];
     
-    // If we are actively sorting by Signal, re-sort the whole table when it fluctuates
+    // Update existing network data
+    Object.assign(existingNet, network);
+    
+    // Push new signal to history array (cap at 15 points)
+    existingNet.SignalHistory.push(network.Signal);
+    if (existingNet.SignalHistory.length > 15) {
+      existingNet.SignalHistory.shift();
+    }
+
     if (currentSort === 'Signal') {
       sortAndRenderTable();
     } else {
-      // Otherwise just update the specific signal cell quietly
-      const row = document.querySelector(`tr[data-bssid="${CSS.escape(network.BSSID)}"]`);
+      const row = document.querySelector(`tr[data-bssid="${CSS.escape(existingNet.BSSID)}"]`);
       if (row) {
         const signalTd = row.cells[6];
-        const newTd = signalCell(network.Signal);
-        signalTd.replaceWith(newTd);
+        signalTd.replaceWith(signalCell(existingNet.Signal));
       }
+    }
+
+    // LIVE UPDATE: If this network is open in the drawer, redraw the sparkline
+    if (activeDrawerBSSID === existingNet.BSSID) {
+      drawSparkline(existingNet.SignalHistory);
+      const sigText = document.getElementById('drawer-signal-val');
+      if (sigText) sigText.textContent = `${existingNet.Signal} dBm`;
     }
     return;
   }
 
+  // FOR NEW NETWORKS: Initialize the history array
+  network.SignalHistory = [network.Signal];
   networks[network.BSSID] = network;
 
   const countEl = document.getElementById('count-networks');
@@ -386,14 +402,12 @@ function handleNetworkEvent(network) {
     flaggedEl.textContent = parseInt(flaggedEl.textContent, 10) + 1;
   }
 
-  // Respect sort order if active, otherwise prepend like normal
   if (currentSort) {
     sortAndRenderTable();
   } else {
     const tr = renderNetworkRow(network);
     const tbody = document.getElementById('networks-body');
     tbody.prepend(tr);
-
     tr.classList.add('row-enter');
     setTimeout(() => tr.classList.remove('row-enter'), 300);
   }
@@ -532,16 +546,75 @@ function handleFloodEvent(entry) {
 }
 
 // ---------------------------------------------------------------------------
+// drawSparkline (Native SVG Generator)
+// ---------------------------------------------------------------------------
+function drawSparkline(history) {
+  const container = document.getElementById('sparkline-container');
+  if (!container) return;
+
+  if (!history || history.length < 2) {
+    container.innerHTML = '<span class="drawer-val" style="color: var(--text-muted);">Gathering telemetry...</span>';
+    return;
+  }
+
+  // dBm bounds for Wi-Fi (usually between -100 and -30)
+  const minSig = -100;
+  const maxSig = -30;
+  const width = 300;
+  const height = 60;
+  
+  // We keep 15 data points maximum, so 14 segments
+  const stepX = width / 14; 
+
+  // Map our dBm values to X/Y coordinates on the SVG canvas
+  const points = history.map((val, i) => {
+    // Clamp the value just in case
+    const clampedVal = Math.max(minSig, Math.min(maxSig, val));
+    const normalizedY = (clampedVal - minSig) / (maxSig - minSig); 
+    const y = height - (normalizedY * height); // Invert because SVG Y goes top-to-bottom
+    const x = i * stepX;
+    return `${x},${y}`;
+  }).join(' ');
+
+  // Calculate the coordinates for the leading dot
+  const lastVal = Math.max(minSig, Math.min(maxSig, history[history.length - 1]));
+  const dotY = height - (((lastVal - minSig) / (maxSig - minSig)) * height);
+  const dotX = (history.length - 1) * stepX;
+
+  container.innerHTML = `
+    <svg width="100%" height="${height}" viewBox="0 0 ${width} ${height}" style="overflow: visible; margin-top: 5px;">
+      <polyline fill="none" stroke="var(--green)" stroke-width="2.5" points="${points}" stroke-linejoin="round" stroke-linecap="round" />
+      <circle cx="${dotX}" cy="${dotY}" r="4" fill="var(--green)" style="filter: drop-shadow(0 0 4px var(--green));" />
+    </svg>
+  `;
+}
+
+// ---------------------------------------------------------------------------
 // openDrawer
 // ---------------------------------------------------------------------------
 function openDrawer(network) {
+  activeDrawerBSSID = network.BSSID; // Set active focus
   document.getElementById('drawer-ssid').textContent = network.SSID;
 
   const content = document.getElementById('drawer-content');
   content.innerHTML = '';
 
+  // 1. Inject the Sparkline Header
+  const sparkRow = document.createElement('div');
+  sparkRow.className = 'drawer-row';
+  sparkRow.style.borderBottom = 'none'; 
+  sparkRow.innerHTML = `
+    <span class="drawer-key" style="color: var(--green);">Live Signal Telemetry</span>
+    <div id="sparkline-container" style="height: 60px; width: 100%; margin-bottom: 10px;"></div>
+  `;
+  content.appendChild(sparkRow);
+
+  // Draw the initial graph immediately
+  drawSparkline(network.SignalHistory || []);
+
+  // 2. Loop the rest of the metadata
   for (const [key, value] of Object.entries(network)) {
-    if (key === 'flagged') continue;
+    if (key === 'flagged' || key === 'SignalHistory') continue;
 
     const row = document.createElement('div');
     row.className = 'drawer-row';
@@ -552,7 +625,13 @@ function openDrawer(network) {
 
     const v = document.createElement('span');
     v.className = 'drawer-val';
-    v.textContent = value ?? '—';
+    v.textContent = value ?? '-';
+    
+    // Tag the signal text so we can live-update the number too
+    if (key === 'Signal') {
+      v.id = 'drawer-signal-val';
+      v.textContent = `${value} dBm`;
+    }
 
     row.append(k, v);
     content.appendChild(row);
@@ -565,6 +644,7 @@ function openDrawer(network) {
 // closeDrawer
 // ---------------------------------------------------------------------------
 function closeDrawer() {
+  activeDrawerBSSID = null; // Clear active focus
   document.getElementById('detail-drawer').classList.remove('open');
 }
 
