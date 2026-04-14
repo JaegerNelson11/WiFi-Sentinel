@@ -53,6 +53,16 @@ docker compose --profile mac up --build
 
 Then open **http://localhost:5001** (macOS) or **http://localhost:5000** (Linux).
 
+
+### Local Demo Simulation (No Hardware Required)
+If you do not have a monitor-mode adapter, you can run a local simulation to test the UI with mock data and simulated attacks.
+
+1. Run the UI development profile: ocker compose --profile mac up --build
+2. Open **http://localhost:5001** (or **http://localhost:5000** if on Linux).
+3. Select **"Demo Simulation (Local)"** from the Interface dropdown.
+4. Click **Start Scan** to view staggered network discovery, live signal jitter, and timed threat alerts.
+
+
 ## API Reference
 | Method | Route | Description |
 |---|---|---|
