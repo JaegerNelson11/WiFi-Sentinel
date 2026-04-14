@@ -12,6 +12,13 @@ Wi-Fi Sentinel is a passive wireless reconnaissance and threat detection tool. I
 - **Live Web UI** — dark terminal aesthetic, SSE-powered live table, threat feed, and detail drawer
 - **Plugin System** — drop a `.py` file in `backend/plugins/` to enrich network data with no core changes
 - **REST API** — all data available as JSON; `/api/stream` for SSE event feed
+- **CSV Export** — download a full report of discovered networks as a spreadsheet
+- **Column Sorting** — click any table header to sort ascending or descending
+- **Signal Sparklines** — live SVG signal history graph in the network detail drawer
+- **Search & Filter** — real-time search bar filters by SSID, BSSID, security type, or standard
+- **Flagged-Only View** — one-click toggle to show only WEP and Open networks
+- **Channel Distribution Chart** — live bar chart showing how many networks are on each Wi-Fi channel
+- **Dark/Light Mode** — toggle between dark terminal theme and light mode
 
 ## Project Structure
 ```
@@ -57,7 +64,7 @@ Then open **http://localhost:5001** (macOS) or **http://localhost:5000** (Linux)
 ### Local Demo Simulation (No Hardware Required)
 If you do not have a monitor-mode adapter, you can run a local simulation to test the UI with mock data and simulated attacks.
 
-1. Run the UI development profile: ocker compose --profile mac up --build
+1. Run the UI development profile: `docker compose --profile mac up --build`
 2. Open **http://localhost:5001** (or **http://localhost:5000** if on Linux).
 3. Select **"Demo Simulation (Local)"** from the Interface dropdown.
 4. Click **Start Scan** to view staggered network discovery, live signal jitter, and timed threat alerts.
