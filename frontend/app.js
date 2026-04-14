@@ -6,9 +6,11 @@ const API = '';
 let networks = {};
 let scanning = false;
 let sse = null;
-let currentSort = null; 
+let currentSort = null;
 let sortAsc = true;
 let activeDrawerBSSID = null;
+let filterText = '';
+let flaggedOnly = false;
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -105,6 +107,17 @@ function wireButtons() {
   document.getElementById('btn-stop').addEventListener('click', stopScan);
   document.getElementById('drawer-close').addEventListener('click', closeDrawer);
   document.getElementById('btn-export').addEventListener('click', exportCSV);
+
+  document.getElementById('filter-input').addEventListener('input', (e) => {
+    filterText = e.target.value.toLowerCase();
+    applyFilters();
+  });
+
+  document.getElementById('btn-flagged-only').addEventListener('click', () => {
+    flaggedOnly = !flaggedOnly;
+    document.getElementById('btn-flagged-only').classList.toggle('active', flaggedOnly);
+    applyFilters();
+  });
 
   for (const btn of document.querySelectorAll('.tab-btn')) {
     btn.addEventListener('click', () => {
@@ -232,6 +245,10 @@ async function startScan() {
 
     scanning = true;
     networks = {};
+    filterText = '';
+    flaggedOnly = false;
+    document.getElementById('filter-input').value = '';
+    document.getElementById('btn-flagged-only').classList.remove('active');
     document.getElementById('networks-body').innerHTML = '';
     document.getElementById('threats-feed').innerHTML = '';
     document.getElementById('count-networks').textContent = '0';
@@ -321,36 +338,7 @@ function connectSSE() {
 // ---------------------------------------------------------------------------
 function sortAndRenderTable() {
   if (!currentSort) return;
-
-  const tbody = document.getElementById('networks-body');
-  const netArray = Object.values(networks);
-
-  netArray.sort((a, b) => {
-    let valA = a[currentSort];
-    let valB = b[currentSort];
-
-    // Handle special cases: Status (Flagged), Numbers, and Strings
-    if (currentSort === 'Status') {
-      valA = a.flagged ? 0 : 1;
-      valB = b.flagged ? 0 : 1;
-    } else if (currentSort === 'Signal' || currentSort === 'Channel') {
-      valA = valA != null ? Number(valA) : -999;
-      valB = valB != null ? Number(valB) : -999;
-    } else {
-      valA = String(valA || '').toLowerCase();
-      valB = String(valB || '').toLowerCase();
-    }
-
-    if (valA < valB) return sortAsc ? -1 : 1;
-    if (valA > valB) return sortAsc ? 1 : -1;
-    return 0;
-  });
-
-  // Clear table and re-render in sorted order
-  tbody.innerHTML = '';
-  netArray.forEach(net => {
-    tbody.appendChild(renderNetworkRow(net));
-  });
+  applyFilters();
 }
 
 // ---------------------------------------------------------------------------
@@ -686,6 +674,43 @@ function timestamp() {
 
 
 // ---------------------------------------------------------------------------
+// Filter logic
+// ---------------------------------------------------------------------------
+function applyFilters() {
+  const tbody = document.getElementById('networks-body');
+  let netArray = Object.values(networks);
+
+  if (flaggedOnly) {
+    netArray = netArray.filter(n => n.flagged);
+  }
+
+  if (filterText) {
+    netArray = netArray.filter(n =>
+      (n.SSID || '').toLowerCase().includes(filterText) ||
+      (n.Security || '').toLowerCase().includes(filterText) ||
+      (n.Standard || '').toLowerCase().includes(filterText) ||
+      (n.BSSID || '').toLowerCase().includes(filterText)
+    );
+  }
+
+  if (currentSort) {
+    netArray.sort((a, b) => {
+      let valA = a[currentSort];
+      let valB = b[currentSort];
+      if (currentSort === 'Status') { valA = a.flagged ? 0 : 1; valB = b.flagged ? 0 : 1; }
+      else if (currentSort === 'Signal' || currentSort === 'Channel') { valA = valA != null ? Number(valA) : -999; valB = valB != null ? Number(valB) : -999; }
+      else { valA = String(valA || '').toLowerCase(); valB = String(valB || '').toLowerCase(); }
+      if (valA < valB) return sortAsc ? -1 : 1;
+      if (valA > valB) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }
+
+  tbody.innerHTML = '';
+  netArray.forEach(net => tbody.appendChild(renderNetworkRow(net)));
+}
+
+// ---------------------------------------------------------------------------
 // Demo Simulator Logic
 // ---------------------------------------------------------------------------
 let demoIntervals = [];
@@ -694,6 +719,10 @@ function startDemo() {
   // 1. Reset the UI just like a real scan
   networks = {};
   scanning = true;
+  filterText = '';
+  flaggedOnly = false;
+  document.getElementById('filter-input').value = '';
+  document.getElementById('btn-flagged-only').classList.remove('active');
   document.getElementById('networks-body').innerHTML = '';
   document.getElementById('threats-feed').innerHTML = '';
   document.getElementById('count-networks').textContent = '0';
