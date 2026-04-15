@@ -112,7 +112,15 @@ function initThreatChart() {
       animation: { duration: 300 },
       plugins: { legend: { display: false } },
       scales: {
-        y: { beginAtZero: true }
+        x: {
+          ticks: { color: '#8b949e', font: { size: 10 } },
+          grid: { color: 'rgba(33,38,45,0.8)' }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: '#8b949e', font: { size: 10 }, stepSize: 1, precision: 0 },
+          grid: { color: 'rgba(33,38,45,0.8)' }
+        }
       }
     }
   });

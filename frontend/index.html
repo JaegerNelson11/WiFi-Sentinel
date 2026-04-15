@@ -104,18 +104,18 @@
 
       <div id="threats-analytics">
         <!-- Summary Bar with Export Button to the right -->
-        <div id="summary-bar-wrap" style="display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 15px;">
-          <div style="flex:1; display:flex; justify-content:center;">
-            <div id="summary-bar" style="display:flex; gap:16px; text-align:center;">
-              <div class="metric-card">
+        <div id="summary-bar-wrap" style="display: flex; align-items: center; margin-bottom: 15px;">
+          <div style="flex:1; display: flex; justify-content: center;">
+            <div id="summary-bar" style="display: flex; gap: 16px; text-align: center; justify-content: center; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 18px; min-width: 340px;">
+              <div class="metric-card" style="box-shadow: none; border: none; background: transparent;">
                 <span class="metric-value" id="summary-total">0</span>
                 <span class="metric-label">Total Deauths</span>
               </div>
-              <div class="metric-card">
+              <div class="metric-card" style="box-shadow: none; border: none; background: transparent;">
                 <span class="metric-value" id="summary-unique">0</span>
                 <span class="metric-label">Unique Attackers</span>
               </div>
-              <div class="metric-card">
+              <div class="metric-card" style="box-shadow: none; border: none; background: transparent;">
                 <span class="metric-value" id="summary-target">—</span>
                 <span class="metric-label">Most Targeted</span>
               </div>
@@ -126,6 +126,7 @@
 
         <!-- Chart -->
         <div id="threat-chart-wrap" style="height:220px;">
+          <p class="chart-label">Attacker Frequency</p>
           <canvas id="attacker-chart"></canvas>
         </div>
 
