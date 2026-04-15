@@ -38,6 +38,10 @@ let filterText = '';
 let flaggedOnly = false;
 let channelCounts = {};
 let channelChart = null;
+let attackerCounts = {};
+let targetCounts = {};
+let threatChart = null;
+
 
 // ---------------------------------------------------------------------------
 // Boot
@@ -48,7 +52,64 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchInitialState();
   wireButtons();
   initChannelChart();
+  initThreatChart();
 });
+
+// ---------------------------------------------------------------------------
+// 🔴 Threat Chart
+// ---------------------------------------------------------------------------
+function initThreatChart() {
+  const canvas = document.getElementById('attacker-chart');
+  if (!canvas) return;
+
+  const ctx = canvas.getContext('2d');
+
+  threatChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: [],
+      datasets: [{
+        data: [],
+        backgroundColor: 'rgba(255,80,80,0.3)',
+        borderColor: 'rgba(255,80,80,0.9)',
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 300 },
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 🔴 Threat Summary
+// ---------------------------------------------------------------------------
+function updateThreatSummary() {
+  const total = Object.values(attackerCounts).reduce((a, b) => a + b, 0);
+  document.getElementById('summary-total').textContent = total;
+
+  document.getElementById('summary-unique').textContent =
+    Object.keys(attackerCounts).length;
+
+  let topTarget = '—';
+  let max = 0;
+
+  for (const [target, count] of Object.entries(targetCounts)) {
+    if (count > max) {
+      max = count;
+      topTarget = target;
+    }
+  }
+
+  document.getElementById('summary-target').textContent = topTarget;
+}
 
 // ---------------------------------------------------------------------------
 // initInterfaces
@@ -274,6 +335,8 @@ async function startScan() {
       body: JSON.stringify({ interface: iface }),
     });
     await res.json();
+    
+    resetThreatAnalytics();
 
     scanning = true;
     networks = {};
@@ -542,6 +605,20 @@ function handleThreatEvent(entry) {
   const countEl = document.getElementById('count-threats');
   countEl.textContent = parseInt(countEl.textContent, 10) + 1;
 
+  // 🔴 NEW LOGIC
+  attackerCounts[entry.source] = (attackerCounts[entry.source] || 0) + 1;
+  targetCounts[entry.target] = (targetCounts[entry.target] || 0) + 1;
+
+  updateThreatSummary();
+
+  if (threatChart) {
+    const labels = Object.keys(attackerCounts);
+    threatChart.data.labels = labels;
+    threatChart.data.datasets[0].data = labels.map(k => attackerCounts[k]);
+    threatChart.update();
+  }
+
+
   const card = document.createElement('div');
   card.className = 'threat-card';
 
@@ -565,6 +642,18 @@ function handleThreatEvent(entry) {
 // handleFloodEvent
 // ---------------------------------------------------------------------------
 function handleFloodEvent(entry) {
+  attackerCounts[entry.source] = (attackerCounts[entry.source] || 0) + entry.count;
+
+  updateThreatSummary();
+
+  if (threatChart) {
+    const labels = Object.keys(attackerCounts);
+    threatChart.data.labels = labels;
+    threatChart.data.datasets[0].data = labels.map(k => attackerCounts[k]);
+    threatChart.update();
+  }
+
+
   const card = document.createElement('div');
   card.className = 'threat-card flood';
 
@@ -582,6 +671,24 @@ function handleFloodEvent(entry) {
 
   card.append(type, macs, meta);
   document.getElementById('threats-feed').prepend(card);
+}
+
+// ---------------------------------------------------------------------------
+// 🔴 RESET HELPER
+// ---------------------------------------------------------------------------
+function resetThreatAnalytics() {
+  attackerCounts = {};
+  targetCounts = {};
+
+  if (threatChart) {
+    threatChart.data.labels = [];
+    threatChart.data.datasets[0].data = [];
+    threatChart.update();
+  }
+
+  document.getElementById('summary-total').textContent = '0';
+  document.getElementById('summary-unique').textContent = '0';
+  document.getElementById('summary-target').textContent = '—';
 }
 
 // ---------------------------------------------------------------------------
@@ -801,6 +908,8 @@ function applyFilters() {
 let demoIntervals = [];
 
 function startDemo() {
+  resetThreatAnalytics();
+
   // 1. Reset the UI just like a real scan
   networks = {};
   scanning = true;

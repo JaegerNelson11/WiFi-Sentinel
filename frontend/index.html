@@ -91,7 +91,7 @@
               <th>Ch</th>
               <th>Signal</th>
               <th>Score /10</th>
-              <th>Vendor <!-- PLUGIN FIELD: vendor --></th>
+              <th>Vendor</th>
             </tr>
           </thead>
           <tbody id="networks-body"></tbody>
@@ -101,6 +101,36 @@
 
     <!-- Threats panel -->
     <div id="panel-threats" class="tab-panel" hidden>
+
+      <!-- 🔴 NEW: Analytics Header -->
+      <div id="threats-analytics">
+
+        <!-- Summary Bar -->
+        <div id="summary-bar" style="display:flex; gap:16px; margin-bottom:15px; justify-content:center; text-align:center;">
+          <div class="metric-card">
+            <span class="metric-value" id="summary-total">0</span>
+            <span class="metric-label">Total Deauths</span>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-value" id="summary-unique">0</span>
+            <span class="metric-label">Unique Attackers</span>
+          </div>
+
+          <div class="metric-card">
+            <span class="metric-value" id="summary-target">—</span>
+            <span class="metric-label">Most Targeted</span>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div id="threat-chart-wrap" style="height:220px;">
+          <canvas id="attacker-chart"></canvas>
+        </div>
+
+      </div>
+
+      <!-- Existing Feed -->
       <div id="threats-feed"></div>
     </div>
 
