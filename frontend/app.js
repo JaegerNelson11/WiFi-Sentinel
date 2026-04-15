@@ -110,16 +110,29 @@ function initThreatChart() {
       responsive: true,
       maintainAspectRatio: false,
       animation: { duration: 300 },
+      layout: { padding: { left: 16, right: 16 } },
       plugins: { legend: { display: false } },
       scales: {
         x: {
-          ticks: { color: '#8b949e', font: { size: 10 } },
-          grid: { color: 'rgba(33,38,45,0.8)' }
+          ticks: { color: '#8b949e', font: { size: 10 }, padding: 10 },
+          grid: {
+            color: 'rgba(33,38,45,0.8)',
+            drawTicks: false,
+            drawBorder: false,
+            borderColor: 'rgba(0,0,0,0)',
+            tickLength: 0
+          },
+          offset: true,
+          border: { display: false },
+          grace: '10%',
+          min: -0.5,
+          max: (ctx) => ctx.chart.data.labels.length - 0.5,
         },
         y: {
           beginAtZero: true,
           ticks: { color: '#8b949e', font: { size: 10 }, stepSize: 1, precision: 0 },
-          grid: { color: 'rgba(33,38,45,0.8)' }
+          grid: { color: 'rgba(33,38,45,0.8)' },
+          grace: '5%',
         }
       }
     }
