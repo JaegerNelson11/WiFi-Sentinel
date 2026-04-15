@@ -1,3 +1,26 @@
+/* -------------------------------------------------------------------------
+   Secondary Button (for analytics export, etc.)
+------------------------------------------------------------------------- */
+.secondary-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 500;
+  margin-bottom: 0;
+  float: none;
+  transition: border-color 0.15s, color 0.15s;
+  margin-top: 0;
+}
+
+.secondary-btn:hover {
+  border-color: var(--text-muted);
+  color: var(--text);
+}
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap');
 
 /* -------------------------------------------------------------------------

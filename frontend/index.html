@@ -102,25 +102,26 @@
     <!-- Threats panel -->
     <div id="panel-threats" class="tab-panel" hidden>
 
-      <!-- 🔴 NEW: Analytics Header -->
       <div id="threats-analytics">
-
-        <!-- Summary Bar -->
-        <div id="summary-bar" style="display:flex; gap:16px; margin-bottom:15px; justify-content:center; text-align:center;">
-          <div class="metric-card">
-            <span class="metric-value" id="summary-total">0</span>
-            <span class="metric-label">Total Deauths</span>
+        <!-- Summary Bar with Export Button to the right -->
+        <div id="summary-bar-wrap" style="display: flex; align-items: center; justify-content: center; gap: 18px; margin-bottom: 15px;">
+          <div style="flex:1; display:flex; justify-content:center;">
+            <div id="summary-bar" style="display:flex; gap:16px; text-align:center;">
+              <div class="metric-card">
+                <span class="metric-value" id="summary-total">0</span>
+                <span class="metric-label">Total Deauths</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-value" id="summary-unique">0</span>
+                <span class="metric-label">Unique Attackers</span>
+              </div>
+              <div class="metric-card">
+                <span class="metric-value" id="summary-target">—</span>
+                <span class="metric-label">Most Targeted</span>
+              </div>
+            </div>
           </div>
-
-          <div class="metric-card">
-            <span class="metric-value" id="summary-unique">0</span>
-            <span class="metric-label">Unique Attackers</span>
-          </div>
-
-          <div class="metric-card">
-            <span class="metric-value" id="summary-target">—</span>
-            <span class="metric-label">Most Targeted</span>
-          </div>
+          <button id="btn-export-analytics" class="secondary-btn" style="margin-left: auto; margin-right: 24px;">Export Analytics as CSV</button>
         </div>
 
         <!-- Chart -->

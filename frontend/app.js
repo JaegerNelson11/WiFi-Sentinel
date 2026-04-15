@@ -1,4 +1,34 @@
 // ---------------------------------------------------------------------------
+// Export Threat Analytics
+// ---------------------------------------------------------------------------
+document.addEventListener('DOMContentLoaded', () => {
+  // ...existing code...
+  const exportBtn = document.getElementById('btn-export-analytics');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      exportThreatAnalytics();
+    });
+  }
+});
+
+function exportThreatAnalytics() {
+  let csv = 'Metric,Value\n';
+  csv += `Total Deauths,${document.getElementById('summary-total').textContent}\n`;
+  csv += `Unique Attackers,${document.getElementById('summary-unique').textContent}\n`;
+  csv += `Most Targeted,${document.getElementById('summary-target').textContent}\n`;
+  csv += '\nAttacker,Deauths\n';
+  for (const [attacker, count] of Object.entries(attackerCounts)) {
+    csv += `${attacker},${count}\n`;
+  }
+  const csvBlob = new Blob([csv], { type: 'text/csv' });
+  const csvLink = document.createElement('a');
+  csvLink.href = URL.createObjectURL(csvBlob);
+  csvLink.download = `threat_analytics_${Date.now()}.csv`;
+  document.body.appendChild(csvLink);
+  csvLink.click();
+  document.body.removeChild(csvLink);
+}
+// ---------------------------------------------------------------------------
 // Security Score Calculation (Demo Mode)
 // ---------------------------------------------------------------------------
 function calculateScore(network) {
@@ -56,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 🔴 Threat Chart
+// Threat Chart
 // ---------------------------------------------------------------------------
 function initThreatChart() {
   const canvas = document.getElementById('attacker-chart');
@@ -89,7 +119,7 @@ function initThreatChart() {
 }
 
 // ---------------------------------------------------------------------------
-// 🔴 Threat Summary
+// Threat Summary
 // ---------------------------------------------------------------------------
 function updateThreatSummary() {
   const total = Object.values(attackerCounts).reduce((a, b) => a + b, 0);
@@ -605,7 +635,6 @@ function handleThreatEvent(entry) {
   const countEl = document.getElementById('count-threats');
   countEl.textContent = parseInt(countEl.textContent, 10) + 1;
 
-  // 🔴 NEW LOGIC
   attackerCounts[entry.source] = (attackerCounts[entry.source] || 0) + 1;
   targetCounts[entry.target] = (targetCounts[entry.target] || 0) + 1;
 
@@ -674,7 +703,7 @@ function handleFloodEvent(entry) {
 }
 
 // ---------------------------------------------------------------------------
-// 🔴 RESET HELPER
+// RESET HELPER
 // ---------------------------------------------------------------------------
 function resetThreatAnalytics() {
   attackerCounts = {};
