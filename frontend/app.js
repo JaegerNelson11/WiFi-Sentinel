@@ -1,3 +1,28 @@
+// ---------------------------------------------------------------------------
+// Security Score Calculation (Demo Mode)
+// ---------------------------------------------------------------------------
+function calculateScore(network) {
+  let score;
+  const security = network.Security || '';
+  const signal = network.Signal;
+  const ssid = network.SSID || '';
+
+  if (security.includes('WPA3')) score = 10;
+  else if (security.includes('WPA2')) score = 7;
+  else if (security.includes('WEP')) score = 2;
+  else if (security.includes('Open')) score = 1;
+  else score = 1;
+
+  if (typeof signal === 'number') {
+    if (signal > -50) score += 1;
+    else if (signal < -80) score -= 1;
+  }
+
+  if (ssid.trim() === '<Hidden SSID>') score -= 1;
+
+  return Math.max(1, Math.min(10, score));
+}
+
 const API = '';
 
 // ---------------------------------------------------------------------------
@@ -455,7 +480,23 @@ function renderNetworkRow(network) {
   // 7. Signal
   const tdSignal = signalCell(network.Signal);
 
-  // 8. Vendor (plugin field)
+
+  // 8. Score (plugin field)
+  const tdScore = document.createElement('td');
+  const score = network.Score;
+  tdScore.textContent = score ?? '-';
+  if (typeof score === 'number') {
+    if (score >= 8) {
+      tdScore.style.color = 'var(--green, #00c853)';
+    } else if (score >= 5) {
+      tdScore.style.color = 'var(--amber, #ffb300)';
+    } else {
+      tdScore.style.color = 'var(--red, #e53935)';
+    }
+    tdScore.style.fontWeight = 'bold';
+  }
+
+  // 9. Vendor (plugin field)
   const tdVendor = document.createElement('td');
   const vendorSpan = document.createElement('span');
   vendorSpan.className = 'mono';
@@ -463,7 +504,7 @@ function renderNetworkRow(network) {
   vendorSpan.textContent = network.Vendor ?? '—';
   tdVendor.appendChild(vendorSpan);
 
-  tr.append(tdStatus, tdSsid, tdBssid, tdStandard, tdSecurity, tdChannel, tdSignal, tdVendor);
+  tr.append(tdStatus, tdSsid, tdBssid, tdStandard, tdSecurity, tdChannel, tdSignal, tdScore, tdVendor);
   return tr;
 }
 
@@ -803,10 +844,12 @@ function startDemo() {
   let networkIndex = 0;
   const staggerInterval = setInterval(() => {
     if (networkIndex < fakeNetworks.length) {
-      handleNetworkEvent({ ...fakeNetworks[networkIndex] }); 
+      const net = { ...fakeNetworks[networkIndex] };
+      net.Score = calculateScore(net);
+      handleNetworkEvent(net);
       networkIndex++;
     } else {
-      clearInterval(staggerInterval); 
+      clearInterval(staggerInterval);
     }
   }, 600); //  600ms between each row
 
@@ -816,8 +859,9 @@ function startDemo() {
   // 4. Simulate Signal Fluctuation (Live UI updates)
   const signalJitter = setInterval(() => {
     Object.values(networks).forEach(currentNet => {
-      const jitter = Math.floor(Math.random() * 7) - 3; 
+      const jitter = Math.floor(Math.random() * 7) - 3;
       currentNet.Signal = Math.min(-30, Math.max(-90, currentNet.Signal + jitter));
+      currentNet.Score = calculateScore(currentNet);
       handleNetworkEvent({ ...currentNet }); // Triggers the signal UI update
     });
   }, 2000); // Update every 2 seconds
