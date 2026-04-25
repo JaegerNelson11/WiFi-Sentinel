@@ -21,6 +21,43 @@
   border-color: var(--text-muted);
   color: var(--text);
 }
+
+/* -------------------------------------------------------------------------
+   Sidebar user row (logout)
+------------------------------------------------------------------------- */
+#user-row {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+#user-name {
+  color: var(--text-muted);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#btn-logout {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+#btn-logout:hover {
+  color: var(--text);
+  border-color: var(--text-muted);
+}
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap');
 
 /* -------------------------------------------------------------------------

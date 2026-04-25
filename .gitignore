@@ -208,3 +208,6 @@ __marimo__/
 
 # Claude Code
 .claude/
+
+# Wi-Fi Sentinel runtime data (user DB, etc.)
+backend/data/

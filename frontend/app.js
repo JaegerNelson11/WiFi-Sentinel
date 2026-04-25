@@ -76,7 +76,24 @@ let threatChart = null;
 // ---------------------------------------------------------------------------
 // Boot
 // ---------------------------------------------------------------------------
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  const me = await fetch('/api/auth/me', { credentials: 'same-origin' });
+  if (!me.ok) {
+    window.location.href = '/login';
+    return;
+  }
+  const { user } = await me.json();
+  const nameEl = document.getElementById('user-name');
+  if (nameEl) nameEl.textContent = user;
+
+  const logoutBtn = document.getElementById('btn-logout');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+      window.location.href = '/login';
+    });
+  }
+
   initPlugins();
   initInterfaces();
   fetchInitialState();
