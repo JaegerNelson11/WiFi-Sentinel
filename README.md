@@ -91,3 +91,106 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for full instructions. The short version:
 
 ## Potential Features
 See [FEATURES.md](FEATURES.md) for a list of plugin ideas, UI enhancements, and larger features teammates can pick up.
+
+---
+
+## Course Themes
+
+This project integrates four themes from the course:
+
+**1. Wireless Technologies & 802.11 Standards (Week 1)**
+Wi-Fi Sentinel identifies the specific 802.11 generation of each discovered
+network by inspecting capability Information Elements inside beacon frames.
+HE Capability (tag 255, extension 35) indicates 802.11ax (Wi-Fi 6), VHT
+Capability (tag 191) indicates 802.11ac (Wi-Fi 5), and HT Capability (tag 45)
+indicates 802.11n (Wi-Fi 4). This directly implements the 802.11b/g/n/ac/ax
+standard differentiation covered in Week 1.
+
+**2. WPA2/WPA3 Protocols & Security Misconceptions (Week 5)**
+The tool performs manual RSN Information Element parsing to distinguish WPA3
+(AKM suite type 8 — Simultaneous Authentication of Equals) from WPA2 (AKM
+suite type 2 — Pre-Shared Key). Scapy's built-in helper cannot make this
+distinction. Networks using WEP or no encryption are automatically flagged
+as insecure, directly addressing the security misconceptions topic. Hidden
+SSIDs are detected and labeled rather than ignored.
+
+**3. Availability Issues & Deauthentication Attacks (Week 8)**
+The tool passively monitors for 802.11 deauthentication management frames,
+which are the primary vector for Wi-Fi denial of service attacks. A flood
+detection system tracks deauth frame counts per source MAC address and
+escalates to a flood warning when a single source crosses a configurable
+threshold, identifying active jamming or disconnection attacks in real time.
+
+**4. Wireless Penetration Testing & Reconnaissance (Week 6)**
+Wi-Fi Sentinel automates the passive reconnaissance phase of a wireless
+penetration test. It enumerates nearby networks without associating with any
+of them, logs MAC addresses, detects hidden SSIDs, identifies security
+posture, and records channel and signal strength — all standard first-phase
+recon objectives. The tool is explicitly scoped to passive capture only,
+consistent with authorized assessment methodology.
+
+---
+
+## Design Decisions & Trade-offs
+
+**Scapy for raw frame parsing**
+We chose Scapy because it provides direct access to the raw Information
+Elements inside each beacon frame, allowing us to parse RSN IE bytes manually
+and detect WPA3 correctly. The trade-off is that Scapy requires root privileges
+and a monitor-mode capable adapter, locking live capture to Linux.
+
+**Server-Sent Events instead of WebSockets**
+Data flow is strictly one-directional — the server pushes updates to the
+browser. SSE is simpler than WebSockets, uses plain HTTP, and works through
+proxies without additional configuration. The trade-off is no bidirectional
+channel, so client actions like starting a scan go through separate POST
+requests.
+
+**Plugin architecture**
+Features are implemented as drop-in Python files in the plugins/ folder. Each
+plugin receives network data, enriches it, and returns it. A crashing plugin
+is caught and skipped without affecting the pipeline. The trade-off is that
+plugins execute sequentially, so a slow plugin adds latency to every network
+event.
+
+**In-memory state with SQLite persistence**
+Active scan data is held in memory for fast access and real-time streaming.
+Completed sessions are persisted to a SQLite database so historical scans
+survive server restarts. The trade-off of pure memory state during a scan is
+that a crash mid-scan loses that session's data.
+
+**Docker with host networking on Linux**
+Running with network_mode: host and CAP_NET_RAW gives Scapy direct access to
+the host's wireless hardware without privilege escalation complexity inside the
+container. The trade-off is this only works on Linux — the Mac profile falls
+back to port mapping and loses raw capture capability.
+
+---
+
+## Challenges & Lessons Learned
+
+**WPA3 detection**
+Scapy's network_stats() helper does not reliably detect WPA3. We had to
+implement manual RSN IE byte parsing to correctly identify SAE (WPA3) versus
+PSK (WPA2) networks. This required understanding the RSN IE structure at the
+byte level — version, group cipher suite, pairwise cipher count and suites,
+then AKM suite count and suite list.
+
+**Hardware requirements**
+Raw 802.11 frame capture requires monitor mode, which is only available on
+Linux with a compatible adapter. This was a significant constraint during
+development on macOS. We addressed it by building a demo simulation mode that
+generates realistic fake scan data so the full UI can be tested without
+hardware.
+
+**Real-time streaming architecture**
+Synchronizing Scapy's packet capture thread with Flask's HTTP server required
+careful use of a thread-safe queue. The SSE endpoint blocks on the queue and
+yields events as they arrive, while the packet handler thread pushes events in.
+Getting this right without race conditions or dropped events was the main
+threading challenge.
+
+**Plugin isolation**
+Early versions of the plugin system would crash the entire pipeline if one
+plugin raised an exception. We added per-plugin try/except wrapping so a
+broken plugin is logged and skipped without affecting the rest of the chain.
