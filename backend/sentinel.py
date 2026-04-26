@@ -14,6 +14,8 @@ except Exception:
 networks: dict = {}
 deauth_logs: list = []
 deauth_counts: dict = {}
+evil_twin_logs: list = []
+ssid_map: dict = {}  # ssid -> [bssid, ...] for evil twin detection
 
 _callback = None
 _stop_event = threading.Event()
@@ -88,6 +90,44 @@ def parse_security(packet) -> str:
     return "/".join(crypto_set)
 
 
+def detect_wps(packet) -> bool:
+    """Return True if the beacon advertises WPS (Wi-Fi Protected Setup)."""
+    elt = packet.getlayer(Dot11Elt)
+    while elt:
+        # Vendor Specific IE (ID=221), OUI=00:50:f2, OUI-type=04 → WPS
+        if elt.ID == 221 and elt.info and len(elt.info) >= 4:
+            if elt.info[:3] == b'\x00\x50\xf2' and elt.info[3] == 0x04:
+                return True
+        elt = elt.payload.getlayer(Dot11Elt) if elt.payload else None
+    return False
+
+
+def _check_evil_twin(bssid: str, ssid: str, security: str):
+    """
+    Compare bssid/ssid against ssid_map. Emit an evil_twin event if the same
+    SSID was already seen from a different BSSID. Updates ssid_map in place.
+    """
+    if ssid in ("<Hidden SSID>", "<Error Decoding>", ""):
+        return
+    if ssid in ssid_map:
+        for existing_bssid in ssid_map[ssid]:
+            if existing_bssid != bssid:
+                existing_net = networks.get(existing_bssid, {})
+                twin_entry = {
+                    "ssid": ssid,
+                    "original_bssid": existing_bssid,
+                    "clone_bssid": bssid,
+                    "original_security": existing_net.get("Security", "?"),
+                    "clone_security": security,
+                }
+                evil_twin_logs.append(twin_entry)
+                _emit({"type": "evil_twin", "data": twin_entry})
+                break
+    ssid_map.setdefault(ssid, [])
+    if bssid not in ssid_map[ssid]:
+        ssid_map[ssid].append(bssid)
+
+
 def detect_standard(packet) -> str:
     """
     Infer the 802.11 standard (a/b/g/n/ac/ax) from RadioTap metadata and
@@ -151,6 +191,7 @@ def packet_handler(packet):
         if bssid not in networks:
             security = parse_security(packet)
             standard = detect_standard(packet)
+            wps = detect_wps(packet)
 
             # Extract channel from DS Parameter Set IE (ID 3)
             channel = None
@@ -176,9 +217,11 @@ def packet_handler(packet):
                 "Standard": standard,
                 "Channel": channel,
                 "Signal": signal,
+                "WPS": wps,
             }
             networks[bssid] = entry
             _emit({"type": "network", "data": entry})
+            _check_evil_twin(bssid, ssid, security)
 
     elif packet.haslayer(Dot11Deauth):
         source = packet[Dot11].addr2
@@ -205,18 +248,20 @@ def packet_handler(packet):
 # Demo mode
 # ---------------------------------------------------------------------------
 _DEMO_NETWORKS = [
-    {"SSID": "CoffeeShop_Free",      "BSSID": "00:11:22:33:44:01", "Security": "Open",          "Standard": "802.11n (Wi-Fi 4)",  "Channel": 6,  "Signal": -62},
-    {"SSID": "HomeNetwork_5G",        "BSSID": "A4:C3:F0:11:22:33", "Security": "WPA3",           "Standard": "802.11ax (Wi-Fi 6)", "Channel": 36, "Signal": -48},
-    {"SSID": "NETGEAR_2G",            "BSSID": "C8:3A:35:AA:BB:CC", "Security": "WPA2",           "Standard": "802.11n (Wi-Fi 4)",  "Channel": 1,  "Signal": -71},
-    {"SSID": "linksys",               "BSSID": "00:18:39:DD:EE:FF", "Security": "WEP (Insecure)", "Standard": "802.11b/g",          "Channel": 11, "Signal": -83},
-    {"SSID": "FBI_Surveillance_Van",  "BSSID": "B0:BE:76:55:44:33", "Security": "WPA2",           "Standard": "802.11ac (Wi-Fi 5)", "Channel": 48, "Signal": -55},
-    {"SSID": "<Hidden SSID>",         "BSSID": "FC:EC:DA:22:11:00", "Security": "WPA2",           "Standard": "802.11ac (Wi-Fi 5)", "Channel": 6,  "Signal": -77},
-    {"SSID": "ATT_WIFI_Guest",        "BSSID": "D8:07:B6:99:88:77", "Security": "Open",          "Standard": "802.11n (Wi-Fi 4)",  "Channel": 11, "Signal": -69},
-    {"SSID": "Apartment_303",         "BSSID": "74:9D:DC:66:55:44", "Security": "WPA3",           "Standard": "802.11ax (Wi-Fi 6)", "Channel": 36, "Signal": -58},
-    {"SSID": "xfinitywifi",           "BSSID": "00:26:B9:F0:E1:D2", "Security": "Open",          "Standard": "802.11n (Wi-Fi 4)",  "Channel": 1,  "Signal": -74},
-    {"SSID": "TP-Link_AC1200",        "BSSID": "50:C7:BF:AB:CD:EF", "Security": "WPA2",           "Standard": "802.11ac (Wi-Fi 5)", "Channel": 149,"Signal": -66},
-    {"SSID": "Marriott_Conference",   "BSSID": "00:1C:B3:12:34:56", "Security": "WEP (Insecure)", "Standard": "802.11b/g",          "Channel": 6,  "Signal": -88},
-    {"SSID": "ASUS_RT-AX88U",         "BSSID": "04:D4:C4:78:9A:BC", "Security": "WPA3",           "Standard": "802.11ax (Wi-Fi 6)", "Channel": 100,"Signal": -51},
+    {"SSID": "CoffeeShop_Free",      "BSSID": "00:11:22:33:44:01", "Security": "Open",          "Standard": "802.11n (Wi-Fi 4)",  "Channel": 6,   "Signal": -62, "WPS": False},
+    {"SSID": "HomeNetwork_5G",        "BSSID": "A4:C3:F0:11:22:33", "Security": "WPA3",           "Standard": "802.11ax (Wi-Fi 6)", "Channel": 36,  "Signal": -48, "WPS": False},
+    {"SSID": "NETGEAR_2G",            "BSSID": "C8:3A:35:AA:BB:CC", "Security": "WPA2",           "Standard": "802.11n (Wi-Fi 4)",  "Channel": 1,   "Signal": -71, "WPS": True},
+    {"SSID": "linksys",               "BSSID": "00:18:39:DD:EE:FF", "Security": "WEP (Insecure)", "Standard": "802.11b/g",          "Channel": 11,  "Signal": -83, "WPS": True},
+    {"SSID": "FBI_Surveillance_Van",  "BSSID": "B0:BE:76:55:44:33", "Security": "WPA2",           "Standard": "802.11ac (Wi-Fi 5)", "Channel": 48,  "Signal": -55, "WPS": False},
+    {"SSID": "<Hidden SSID>",         "BSSID": "FC:EC:DA:22:11:00", "Security": "WPA2",           "Standard": "802.11ac (Wi-Fi 5)", "Channel": 6,   "Signal": -77, "WPS": False},
+    {"SSID": "ATT_WIFI_Guest",        "BSSID": "D8:07:B6:99:88:77", "Security": "Open",          "Standard": "802.11n (Wi-Fi 4)",  "Channel": 11,  "Signal": -69, "WPS": False},
+    {"SSID": "Apartment_303",         "BSSID": "74:9D:DC:66:55:44", "Security": "WPA3",           "Standard": "802.11ax (Wi-Fi 6)", "Channel": 36,  "Signal": -58, "WPS": False},
+    {"SSID": "xfinitywifi",           "BSSID": "00:26:B9:F0:E1:D2", "Security": "Open",          "Standard": "802.11n (Wi-Fi 4)",  "Channel": 1,   "Signal": -74, "WPS": False},
+    {"SSID": "TP-Link_AC1200",        "BSSID": "50:C7:BF:AB:CD:EF", "Security": "WPA2",           "Standard": "802.11ac (Wi-Fi 5)", "Channel": 149, "Signal": -66, "WPS": True},
+    {"SSID": "Marriott_Conference",   "BSSID": "00:1C:B3:12:34:56", "Security": "WEP (Insecure)", "Standard": "802.11b/g",          "Channel": 6,   "Signal": -88, "WPS": False},
+    {"SSID": "ASUS_RT-AX88U",         "BSSID": "04:D4:C4:78:9A:BC", "Security": "WPA3",           "Standard": "802.11ax (Wi-Fi 6)", "Channel": 100, "Signal": -51, "WPS": False},
+    # Evil twin: same SSID as CoffeeShop_Free but different BSSID and slightly different channel
+    {"SSID": "CoffeeShop_Free",       "BSSID": "DE:AD:BE:EF:CA:FE", "Security": "Open",          "Standard": "802.11n (Wi-Fi 4)",  "Channel": 11,  "Signal": -53, "WPS": False},
 ]
 
 _DEMO_DEAUTHS = [
@@ -246,6 +291,7 @@ def start_demo(callback=None) -> threading.Thread:
             entry["Signal"] = entry["Signal"] + random.randint(-3, 3)
             networks[entry["BSSID"]] = entry
             _emit({"type": "network", "data": entry})
+            _check_evil_twin(entry["BSSID"], entry["SSID"], entry["Security"])
             time.sleep(1.2)
 
         # After networks are loaded, send a couple of deauth events
@@ -339,3 +385,5 @@ def reset():
     networks.clear()
     deauth_logs.clear()
     deauth_counts.clear()
+    evil_twin_logs.clear()
+    ssid_map.clear()

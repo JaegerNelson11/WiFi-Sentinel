@@ -29,6 +29,10 @@ def on_network(network: dict) -> dict:
     if ssid.strip() == "<Hidden SSID>":
         score -= 1
 
+    # WPS penalty — WPS PIN attacks (Pixie Dust) are well-documented
+    if network.get("WPS"):
+        score -= 2
+
     # Clamp score between 1 and 10
     score = max(1, min(10, score))
     network["Score"] = score

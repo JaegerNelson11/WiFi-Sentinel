@@ -146,7 +146,8 @@ def scan_stop():
 # ---------------------------------------------------------------------------
 def _flagged(network: dict) -> dict:
     security = network.get("Security", "")
-    return {**network, "flagged": "WEP" in security or "Open" in security}
+    wps = network.get("WPS", False)
+    return {**network, "flagged": "WEP" in security or "Open" in security or wps}
 
 
 @app.get("/api/networks")
@@ -159,7 +160,9 @@ def get_networks():
 @app.get("/api/threats")
 @auth.login_required
 def get_threats():
-    return jsonify(list(sentinel.deauth_logs))
+    results = [{"threat_type": "deauth", **e} for e in sentinel.deauth_logs]
+    results += [{"threat_type": "evil_twin", **e} for e in sentinel.evil_twin_logs]
+    return jsonify(results)
 
 
 @app.get("/api/report")

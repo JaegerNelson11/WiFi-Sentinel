@@ -486,6 +486,7 @@ function connectSSE() {
     if (data.type === 'network') handleNetworkEvent(data.data);
     else if (data.type === 'deauth') handleThreatEvent(data.data);
     else if (data.type === 'flood') handleFloodEvent(data.data);
+    else if (data.type === 'evil_twin') handleEvilTwinEvent(data.data);
   };
 
   sse.onerror = () => {
@@ -510,7 +511,7 @@ function sortAndRenderTable() {
 // handleNetworkEvent
 // ---------------------------------------------------------------------------
 function handleNetworkEvent(network) {
-  network.flagged = network.Security.includes('WEP') || network.Security === 'Open';
+  network.flagged = network.Security.includes('WEP') || network.Security === 'Open' || network.WPS === true;
 
   if (network.BSSID in networks) {
     const existingNet = networks[network.BSSID];
@@ -603,6 +604,14 @@ function renderNetworkRow(network) {
   const tdSecurity = document.createElement('td');
   tdSecurity.textContent = network.Security ?? '—';
   if (network.flagged) tdSecurity.style.color = 'var(--red)';
+  if (network.WPS) {
+    const wpsBadge = document.createElement('span');
+    wpsBadge.className = 'badge badge-wps';
+    wpsBadge.textContent = 'WPS';
+    wpsBadge.title = 'WPS enabled — vulnerable to PIN brute-force (Pixie Dust)';
+    tdSecurity.appendChild(document.createTextNode(' '));
+    tdSecurity.appendChild(wpsBadge);
+  }
 
   // 6. Channel
   const tdChannel = document.createElement('td');
@@ -737,6 +746,32 @@ function handleFloodEvent(entry) {
   meta.textContent = `${entry.count} frames detected · ${timestamp()}`;
 
   card.append(type, macs, meta);
+  document.getElementById('threats-feed').prepend(card);
+}
+
+// ---------------------------------------------------------------------------
+// handleEvilTwinEvent
+// ---------------------------------------------------------------------------
+function handleEvilTwinEvent(entry) {
+  const countEl = document.getElementById('count-threats');
+  countEl.textContent = parseInt(countEl.textContent, 10) + 1;
+
+  const card = document.createElement('div');
+  card.className = 'threat-card evil-twin';
+
+  const type = document.createElement('div');
+  type.className = 'threat-type';
+  type.textContent = 'EVIL TWIN DETECTED';
+
+  const ssidLine = document.createElement('div');
+  ssidLine.className = 'threat-macs';
+  ssidLine.textContent = `SSID: "${entry.ssid}"`;
+
+  const meta = document.createElement('div');
+  meta.className = 'threat-meta';
+  meta.textContent = `Legitimate: ${entry.original_bssid} (${entry.original_security}) · Rogue: ${entry.clone_bssid} (${entry.clone_security}) · ${timestamp()}`;
+
+  card.append(type, ssidLine, meta);
   document.getElementById('threats-feed').prepend(card);
 }
 
@@ -877,7 +912,9 @@ async function fetchInitialState() {
     }
 
     for (const threat of threatList) {
-      if ('count' in threat) {
+      if (threat.threat_type === 'evil_twin') {
+        handleEvilTwinEvent(threat);
+      } else if ('count' in threat) {
         handleFloodEvent(threat);
       } else if ('source' in threat) {
         handleThreatEvent(threat);
@@ -1002,18 +1039,20 @@ function startDemo() {
 
   // 2. 12+ Diverse Fake Networks for a robust demo
   const fakeNetworks = [
-    { BSSID: "00:14:22:01:23:45", SSID: "WSU_Guest", Security: "Open", Standard: "802.11n", Channel: 6, Signal: -60, Vendor: "Cisco Systems" },
-    { BSSID: "A0:B1:C2:D3:E4:F5", SSID: "Apartment_WiFi", Security: "WPA3", Standard: "802.11ax", Channel: 11, Signal: -45, Vendor: "Netgear" },
-    { BSSID: "00:11:22:33:44:55", SSID: "<Hidden SSID>", Security: "WEP (Insecure)", Standard: "802.11g", Channel: 1, Signal: -80, Vendor: "Linksys" },
-    { BSSID: "AA:BB:CC:DD:EE:FF", SSID: "CoffeeShop_Free", Security: "Open", Standard: "802.11ac", Channel: 36, Signal: -55, Vendor: "Ubiquiti" },
-    { BSSID: "11:22:33:44:55:66", SSID: "IoT_SmartHome", Security: "WPA2", Standard: "802.11n", Channel: 6, Signal: -70, Vendor: "Espressif" },
-    { BSSID: "44:55:66:77:88:99", SSID: "NETGEAR-5G", Security: "WPA2", Standard: "802.11ac", Channel: 149, Signal: -52, Vendor: "Netgear" },
-    { BSSID: "CC:DD:EE:FF:00:11", SSID: "Cougar_Secure", Security: "WPA2", Standard: "802.11ax", Channel: 44, Signal: -40, Vendor: "Aruba" },
-    { BSSID: "22:33:44:55:66:77", SSID: "HP-Print-22-LaserJet", Security: "Open", Standard: "802.11g", Channel: 11, Signal: -85, Vendor: "Hewlett Packard" },
-    { BSSID: "99:88:77:66:55:44", SSID: "My_iPhone_17", Security: "WPA3", Standard: "802.11ax", Channel: 1, Signal: -35, Vendor: "Apple, Inc." },
-    { BSSID: "55:44:33:22:11:00", SSID: "Starbucks WiFi", Security: "Open", Standard: "802.11ac", Channel: 6, Signal: -68, Vendor: "Cisco Systems" },
-    { BSSID: "FE:DC:BA:98:76:54", SSID: "<Hidden SSID>", Security: "WPA2", Standard: "802.11n", Channel: 11, Signal: -77, Vendor: "TP-Link" },
-    { BSSID: "01:23:45:67:89:AB", SSID: "PhiKap_Main", Security: "WPA2", Standard: "802.11ax", Channel: 157, Signal: -48, Vendor: "Ubiquiti" }
+    { BSSID: "00:14:22:01:23:45", SSID: "WSU_Guest",           Security: "Open",          Standard: "802.11n",  Channel: 6,   Signal: -60, Vendor: "Cisco Systems",  WPS: false },
+    { BSSID: "A0:B1:C2:D3:E4:F5", SSID: "Apartment_WiFi",      Security: "WPA3",          Standard: "802.11ax", Channel: 11,  Signal: -45, Vendor: "Netgear",        WPS: false },
+    { BSSID: "00:11:22:33:44:55", SSID: "<Hidden SSID>",        Security: "WEP (Insecure)",Standard: "802.11g",  Channel: 1,   Signal: -80, Vendor: "Linksys",        WPS: true  },
+    { BSSID: "AA:BB:CC:DD:EE:FF", SSID: "CoffeeShop_Free",      Security: "Open",          Standard: "802.11ac", Channel: 36,  Signal: -55, Vendor: "Ubiquiti",       WPS: false },
+    { BSSID: "11:22:33:44:55:66", SSID: "IoT_SmartHome",        Security: "WPA2",          Standard: "802.11n",  Channel: 6,   Signal: -70, Vendor: "Espressif",      WPS: true  },
+    { BSSID: "44:55:66:77:88:99", SSID: "NETGEAR-5G",           Security: "WPA2",          Standard: "802.11ac", Channel: 149, Signal: -52, Vendor: "Netgear",        WPS: true  },
+    { BSSID: "CC:DD:EE:FF:00:11", SSID: "Cougar_Secure",        Security: "WPA2",          Standard: "802.11ax", Channel: 44,  Signal: -40, Vendor: "Aruba",          WPS: false },
+    { BSSID: "22:33:44:55:66:77", SSID: "HP-Print-22-LaserJet", Security: "Open",          Standard: "802.11g",  Channel: 11,  Signal: -85, Vendor: "Hewlett Packard",WPS: false },
+    { BSSID: "99:88:77:66:55:44", SSID: "My_iPhone_17",         Security: "WPA3",          Standard: "802.11ax", Channel: 1,   Signal: -35, Vendor: "Apple, Inc.",    WPS: false },
+    { BSSID: "55:44:33:22:11:00", SSID: "Starbucks WiFi",       Security: "Open",          Standard: "802.11ac", Channel: 6,   Signal: -68, Vendor: "Cisco Systems",  WPS: false },
+    { BSSID: "FE:DC:BA:98:76:54", SSID: "<Hidden SSID>",        Security: "WPA2",          Standard: "802.11n",  Channel: 11,  Signal: -77, Vendor: "TP-Link",        WPS: false },
+    { BSSID: "01:23:45:67:89:AB", SSID: "PhiKap_Main",          Security: "WPA2",          Standard: "802.11ax", Channel: 157, Signal: -48, Vendor: "Ubiquiti",       WPS: false },
+    // Evil twin: same SSID as CoffeeShop_Free, different BSSID
+    { BSSID: "DE:AD:BE:EF:CA:FE", SSID: "CoffeeShop_Free",      Security: "Open",          Standard: "802.11n",  Channel: 1,   Signal: -44, Vendor: "Unknown",        WPS: false },
   ];
 
   // 3. Stagger the network discovery strictly and safely
@@ -1055,4 +1094,15 @@ function startDemo() {
   setTimeout(() => {
     handleThreatEvent({ source: "1A:2B:3C:4D:5E:6F", target: "FF:FF:FF:FF:FF:FF", reason: 1 });
   }, 12000);
+
+  // Evil twin fires after both CoffeeShop_Free entries have appeared (index 3 and 12 × 600ms = ~8s)
+  setTimeout(() => {
+    handleEvilTwinEvent({
+      ssid: "CoffeeShop_Free",
+      original_bssid: "AA:BB:CC:DD:EE:FF",
+      clone_bssid: "DE:AD:BE:EF:CA:FE",
+      original_security: "Open",
+      clone_security: "Open",
+    });
+  }, 9000);
 }

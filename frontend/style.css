@@ -513,6 +513,12 @@ tr.row-enter {
   color: var(--red);
 }
 
+.badge-wps {
+  background: rgba(255, 170, 0, 0.15);
+  color: var(--amber);
+  border: 1px solid rgba(255, 170, 0, 0.3);
+}
+
 /* Mono utility */
 .mono {
   font-family: 'JetBrains Mono', monospace;
@@ -570,6 +576,15 @@ tr.row-enter {
 
 .threat-card.flood .threat-type {
   color: var(--red);
+}
+
+.threat-card.evil-twin {
+  border-color: var(--amber);
+  background: rgba(255, 170, 0, 0.07);
+}
+
+.threat-card.evil-twin .threat-type {
+  color: var(--amber);
 }
 
 .threat-type {
