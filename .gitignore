@@ -211,3 +211,4 @@ __marimo__/
 
 # Wi-Fi Sentinel runtime data (user DB, etc.)
 backend/data/
+data/sentinel.db

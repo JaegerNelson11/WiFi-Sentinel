@@ -12,6 +12,7 @@ from flask_cors import CORS
 sys.path.insert(0, os.path.dirname(__file__))
 import sentinel
 import auth
+import database
 from plugins import PluginManager
 
 # ---------------------------------------------------------------------------
@@ -29,15 +30,22 @@ CORS(app, origins="*", supports_credentials=True)
 
 auth.init_db()
 auth.bootstrap_admin()
+database.init_db()
 
 plugin_manager = PluginManager(os.path.join(os.path.dirname(__file__), "plugins"))
 plugin_manager.load_plugins()
 
 event_queue: queue.Queue = queue.Queue()
+current_session_id: int | None = None
 
 
 def event_callback(event: dict):
     event_queue.put(event)
+    etype = event.get("type")
+    if etype == "network":
+        database.save_network(current_session_id, event["data"])
+    elif etype in ("deauth", "flood"):
+        database.save_threat(current_session_id, event["data"], etype)
 
 
 # ---------------------------------------------------------------------------
@@ -111,9 +119,11 @@ def get_interfaces():
 @app.post("/api/scan/start")
 @auth.login_required
 def scan_start():
+    global current_session_id
     body = request.get_json(silent=True) or {}
     interface = body.get("interface", "")
     sentinel.reset()
+    current_session_id = database.create_session(interface)
     if DEMO_MODE or interface == "demo":
         sentinel.start_demo(callback=event_callback)
     else:
@@ -126,6 +136,7 @@ def scan_start():
 @auth.login_required
 def scan_stop():
     sentinel.stop_scan()
+    database.close_session(current_session_id)
     plugin_manager.call_on_stop()
     return jsonify({"status": "stopped"})
 
@@ -177,6 +188,27 @@ def get_plugins():
         "plugins": plugin_manager.get_loaded(),
         "errors": plugin_manager.get_errors(),
     })
+
+
+# ---------------------------------------------------------------------------
+# Session history
+# ---------------------------------------------------------------------------
+@app.get("/api/sessions")
+@auth.login_required
+def get_sessions():
+    return jsonify(database.get_sessions())
+
+
+@app.get("/api/sessions/<int:session_id>/networks")
+@auth.login_required
+def get_session_networks(session_id):
+    return jsonify(database.get_session_networks(session_id))
+
+
+@app.get("/api/sessions/<int:session_id>/threats")
+@auth.login_required
+def get_session_threats(session_id):
+    return jsonify(database.get_session_threats(session_id))
 
 
 # ---------------------------------------------------------------------------
